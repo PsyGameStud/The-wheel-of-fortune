@@ -9,8 +9,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2348729716052778345}
+  - component: {fileID: 5801318712624705843}
   m_Layer: 5
-  m_Name: Slot
+  m_Name: slot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -36,6 +37,19 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &5801318712624705843
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2348729716052778346}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e556c746d51bd814185a88b4672e15e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _rewrdText: {fileID: 2348729717043840638}
 --- !u!1 &2348729717043840632
 GameObject:
   m_ObjectHideFlags: 0
@@ -48,7 +62,7 @@ GameObject:
   - component: {fileID: 2348729717043840637}
   - component: {fileID: 2348729717043840638}
   m_Layer: 5
-  m_Name: Text_Reward
+  m_Name: text_reward
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -180,7 +194,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5522138600622801452}
   m_Layer: 5
-  m_Name: Holder
+  m_Name: holder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -204,5 +218,5 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 81, y: 146}
   m_Pivot: {x: 0.5, y: 0.5}

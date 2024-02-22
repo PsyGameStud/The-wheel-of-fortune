@@ -1,19 +1,38 @@
 ﻿using UnityEngine;
 using DG.Tweening;
-using UnityEngine.Events;
 using System.Collections.Generic;
 using TMPro;
-using PsyGameStud.Gameplay;
+using Cysharp.Threading.Tasks;
+using System;
+using UnityEngine.UI;
 
-namespace PsyGameStud.PickerWheelUI 
+namespace PsyGameStud
 {
     public class PickerWheel : MonoBehaviour 
     {
         [Space]
+        [SerializeField] private Button _spintButton;
+        [SerializeField] private Image _imageButton;
+        [SerializeField] private TextMeshProUGUI _spintText;
+        [SerializeField] private Sprite _enableSprite;
+        [SerializeField] private Sprite _disableSprite;
+
+        [Space]
         [SerializeField] private Transform _pickerWheelTransform;
         [SerializeField] private Transform _wheelCircle;
-        [SerializeField] private GameObject _wheelPiecePrefab;
+        [SerializeField] private Slot _slotPrefab;
         [SerializeField] private Transform _wheelPiecesParent;
+
+        [Space]
+        [SerializeField] private TextMeshProUGUI _rewardText;
+        [SerializeField] private Image _rewardImage;
+        [SerializeField] private List<Sprite> _rewards;
+        private Sprite _lastReward;
+
+        [Space] 
+        [SerializeField] private FlyingElement _flyingPrefab;
+        [SerializeField] private Transform _parent;
+        private List<FlyingElement> _flyingElements = new List<FlyingElement>();
 
         [Space]
         [Header ("Sounds :")]
@@ -24,27 +43,22 @@ namespace PsyGameStud.PickerWheelUI
 
         [Space]
         [Header ("Picker wheel settings :")]
-        [Range (1, 20)] public int _spinDuration = 8;
+        [Range (1, 20)] public int _spinDuration = 5;
 
-        [Space]
-        [Header ("Picker wheel pieces :")]
-        public WheelPiece[] _wheelPieces;
-
-        // Events
-        private UnityAction _onSpinStartEvent;
-        private UnityAction<WheelPiece> _onSpinEndEvent;
+        private List<WheelPiece> _wheelPieces = new List<WheelPiece>();
+        private List<Slot> _slots = new List<Slot>();
 
         private bool _isSpinning = false;
-        public bool IsSpinning { get { return _isSpinning; } }
 
         private Vector2 _pieceMinSize = new Vector2 (81f, 146f);
         private Vector2 _pieceMaxSize = new Vector2 (144f, 213f);
         private int _piecesMin = 2;
         private int _piecesMax = 12;
+        private int _countCicles = 10;
 
-        [SerializeField] private float _pieceAngle;
-        [SerializeField] private float _halfPieceAngle;
-        [SerializeField] private float _halfPieceAngleWithPaddings;
+        private float _pieceAngle;
+        private float _halfPieceAngle;
+        private float _halfPieceAngleWithPaddings;
 
         private double _accumulatedWeight;
         private System.Random _rand = new System.Random();
@@ -53,14 +67,36 @@ namespace PsyGameStud.PickerWheelUI
 
         private void Start() 
         {
-            _pieceAngle = 360 / _wheelPieces.Length;
+            for (int i = 0; i < 12; i++)
+            {
+                var piece = new WheelPiece();
+                _wheelPieces.Add(piece);
+            }
+
+            for (int i = 0; i < 10; i++)
+            {
+                _flyingElements.Add(CreateElement());
+            }
+
+            _pieceAngle = 360 / _wheelPieces.Count;
             _halfPieceAngle = _pieceAngle / 2f;
             _halfPieceAngleWithPaddings = _halfPieceAngle - (_halfPieceAngle / 4f);
 
+            _rewardImage.sprite = _rewards[UnityEngine.Random.Range(0, _rewards.Count)];
+            _lastReward = _rewardImage.sprite;
+
+            _spintButton.onClick.AddListener(Spin);
+
             Generate();
             CalculateWeightsAndIndices();
+            ChangeRewards().Forget();
 
             //SetupAudio ();
+        }
+
+        private FlyingElement CreateElement()
+        {
+            return Instantiate(_flyingPrefab, _parent);
         }
 
         private void SetupAudio() 
@@ -72,118 +108,188 @@ namespace PsyGameStud.PickerWheelUI
 
         private void Generate()
         {
-            _wheelPiecePrefab = InstantiatePiece();
-
-            RectTransform rt = _wheelPiecePrefab.transform.GetChild (0).GetComponent<RectTransform>();
-            float pieceWidth = Mathf.Lerp(_pieceMinSize.x, _pieceMaxSize.x, 1f - Mathf.InverseLerp(_piecesMin, _piecesMax, _wheelPieces.Length));
-            float pieceHeight = Mathf.Lerp(_pieceMinSize.y, _pieceMaxSize.y, 1f - Mathf.InverseLerp(_piecesMin, _piecesMax, _wheelPieces.Length));
+            RectTransform rt = _slotPrefab.transform.GetChild (0).GetComponent<RectTransform>();
+            float pieceWidth = Mathf.Lerp(_pieceMinSize.x, _pieceMaxSize.x, 1f - Mathf.InverseLerp(_piecesMin, _piecesMax, _wheelPieces.Count));
+            float pieceHeight = Mathf.Lerp(_pieceMinSize.y, _pieceMaxSize.y, 1f - Mathf.InverseLerp(_piecesMin, _piecesMax, _wheelPieces.Count));
             rt.SetSizeWithCurrentAnchors (RectTransform.Axis.Horizontal, pieceWidth);
             rt.SetSizeWithCurrentAnchors (RectTransform.Axis.Vertical, pieceHeight);
 
-            for (int i = 0; i < _wheelPieces.Length; i++)
+            for (int i = 0; i < _wheelPieces.Count; i++)
             {
                 DrawPiece (i);
             }
-
-            Destroy(_wheelPiecePrefab);
         }
 
-        private void DrawPiece (int index) 
+        private void DrawPiece(int index) 
         {
-            WheelPiece piece = _wheelPieces [ index ];
-            Transform pieceTrns = InstantiatePiece().transform.GetChild (0);
+            WheelPiece piece = _wheelPieces[index];
+            var newSLot = InstantiatePiece();
+            newSLot.Setup(piece.Amount);
 
-            //pieceTrns.GetChild (0).GetComponent<Image>().sprite = piece.Icon;
-            pieceTrns.GetChild(0).GetComponent<TextMeshProUGUI>().text = FormatNumsHelper.FormatNum(piece.Amount);
+            _slots.Add(newSLot);
 
-            pieceTrns.RotateAround(_wheelPiecesParent.position, Vector3.back, _pieceAngle * index);
+            newSLot.transform.RotateAround(_wheelPiecesParent.position, Vector3.back, _pieceAngle * index);
         }
 
-        private GameObject InstantiatePiece() 
+        private void GenerateRandomValues()
         {
-            return Instantiate(_wheelPiecePrefab, _wheelPiecesParent.position, Quaternion.identity, _wheelPiecesParent);
+            HashSet<int> usedNumbers = new HashSet<int>();
+
+            for (int i = 0; i < _wheelPieces.Count; i++)
+            {
+                int randomNumber = GetUniqueRandomNumber(usedNumbers);
+                _wheelPieces[i].Amount  = randomNumber;
+                _wheelPieces[i].Chance = UnityEngine.Random.Range(1, 101);
+                _slots[i].Setup(randomNumber);
+            }
         }
 
-        public void Spin() 
+        private int GetUniqueRandomNumber(HashSet<int> usedNumbers)
+        {
+            int randomNumber;
+
+            do
+            {
+                randomNumber = UnityEngine.Random.Range(1, 21) * 5;
+            } while (usedNumbers.Contains(randomNumber));
+
+            usedNumbers.Add(randomNumber);
+            return randomNumber;
+        }
+
+        private Slot InstantiatePiece() 
+        {
+            return Instantiate(_slotPrefab, _wheelPiecesParent.position, Quaternion.identity, _wheelPiecesParent);
+        }
+
+        private async UniTask SpinProcess()
+        {
+            _spintButton.enabled = false;
+            _imageButton.sprite = _disableSprite;
+
+            int index = GetRandomPieceIndex();
+            WheelPiece piece = _wheelPieces[index];
+
+            Debug.Log($"Reward: {piece.Amount}");
+
+            float angle = -(_pieceAngle * index);
+
+            float rightOffset = (angle - _halfPieceAngleWithPaddings) % 360;
+            float leftOffset = (angle + _halfPieceAngleWithPaddings) % 360;
+
+            float randomAngle = UnityEngine.Random.Range(leftOffset, rightOffset);
+
+            Vector3 targetRotation = Vector3.back * (randomAngle + 2 * 360 * _spinDuration);
+
+            float prevAngle, currentAngle;
+            prevAngle = currentAngle = _wheelCircle.eulerAngles.z;
+
+            bool isIndicatorOnTheLine = false;
+
+            await _wheelCircle
+            .DORotate(targetRotation, _spinDuration, RotateMode.FastBeyond360)
+            .SetEase(Ease.InOutQuad)
+            .OnUpdate(() =>
+            {
+                float diff = Mathf.Abs(prevAngle - currentAngle);
+                if (diff >= _halfPieceAngle)
+                {
+                    if (isIndicatorOnTheLine)
+                    {
+                        _audioSource.PlayOneShot(_audioSource.clip);
+                    }
+
+                    prevAngle = currentAngle;
+                    isIndicatorOnTheLine = !isIndicatorOnTheLine;
+                }
+                currentAngle = _wheelCircle.eulerAngles.z;
+            });
+
+            _isSpinning = false;
+
+            await GetReward(piece.Amount);
+
+            await ChangeRewards();
+        }
+
+        private async UniTask GetReward(int reward)
+        {
+            _rewardText.text = $"{0}";
+            _rewardImage.gameObject.SetActive(false);
+
+            foreach (var item in _flyingElements)
+            {
+                item.Setup(_rewardImage.sprite);
+            }
+
+            await UniTask.Delay(TimeSpan.FromSeconds(1f));
+
+            await DOVirtual.Int(0, reward, 5f, async progress =>
+            {
+                foreach (var item in _flyingElements)
+                {
+                    await item.FlyProcess();
+                    _rewardText.text = $"{progress}";
+                }
+            }).SetAutoKill();
+
+            _rewardText.text = $"{reward}";
+
+            await UniTask.Delay(TimeSpan.FromSeconds(1f));
+
+            _rewardImage.gameObject.SetActive(true);
+        }
+
+        private async UniTask ChangeRewards()
+        {
+            var time = 10;
+            _imageButton.sprite = _disableSprite;
+            _spintButton.enabled = false;
+
+            for (int i = 0; i < _countCicles; i++)
+            {
+                time -= 1;
+                _rewardImage.sprite = _rewards[UnityEngine.Random.Range(0, _rewards.Count)];
+                _spintText.text = $"{time}";
+                GenerateRandomValues();
+                await UniTask.Delay(TimeSpan.FromSeconds(1f));
+            }
+
+            if (_rewardImage.sprite == _lastReward)
+            {
+                var idLastReward = _rewards.IndexOf(_lastReward);
+                idLastReward += 1;
+
+                if (idLastReward == _rewards.Count)
+                {
+                    idLastReward = 0;
+                }
+
+                _rewardImage.sprite = _rewards[idLastReward];
+                _lastReward = _rewardImage.sprite;
+            }
+
+            _imageButton.sprite = _enableSprite;
+            _spintButton.enabled = true;
+            _spintText.text = "ИСПЫТАТЬ УДАЧУ";
+        }
+
+        private async void Spin() 
         {
             if (!_isSpinning) 
             {
                 _isSpinning = true;
 
-                _onSpinStartEvent?.Invoke();
-
-                int index = GetRandomPieceIndex();
-                WheelPiece piece = _wheelPieces[index];
-
-                Debug.Log($"Reward: {piece.Amount}");
-
-                if (piece.Chance == 0 && _nonZeroChancesIndices.Count != 0) 
-                {
-                    index = _nonZeroChancesIndices[Random.Range(0, _nonZeroChancesIndices.Count)];
-                    piece = _wheelPieces[index];
-                }
-
-                float angle = -(_pieceAngle * index);
-
-                float rightOffset = (angle - _halfPieceAngleWithPaddings) % 360;
-                float leftOffset = (angle + _halfPieceAngleWithPaddings) % 360;
-
-                float randomAngle = Random.Range(leftOffset, rightOffset);
-
-                Vector3 targetRotation = Vector3.back * (randomAngle + 2 * 360 * _spinDuration);
-
-                float prevAngle, currentAngle;
-                prevAngle = currentAngle = _wheelCircle.eulerAngles.z;
-
-                bool isIndicatorOnTheLine = false;
-
-                Debug.LogError(targetRotation);
-
-                _wheelCircle
-                .DORotate(targetRotation, _spinDuration, RotateMode.FastBeyond360)
-                .SetEase(Ease.InOutQuad)
-                .OnUpdate(() => 
-                {
-                    float diff = Mathf.Abs(prevAngle - currentAngle);
-                    if (diff >= _halfPieceAngle)
-                    {
-                        if (isIndicatorOnTheLine) 
-                        {
-                            _audioSource.PlayOneShot(_audioSource.clip);
-                        }
-
-                        prevAngle = currentAngle;
-                        isIndicatorOnTheLine = !isIndicatorOnTheLine;
-                    }
-                    currentAngle = _wheelCircle.eulerAngles.z;
-                })
-                .OnComplete(() => 
-                {
-                    _isSpinning = false;
-
-                    _onSpinEndEvent?.Invoke(piece);
-                    _onSpinStartEvent = null; 
-                    _onSpinEndEvent = null;
-                }) ;
+                await SpinProcess();
             }
-        }
-
-        public void OnSpinStart(UnityAction action) 
-        {
-            _onSpinStartEvent = action;
-        }
-
-        public void OnSpinEnd(UnityAction<WheelPiece> action) 
-        {
-            _onSpinEndEvent = action;
         }
 
         private int GetRandomPieceIndex() 
         {
             double r = _rand.NextDouble() * _accumulatedWeight;
 
-            for (int i = 0; i < _wheelPieces.Length; i++)
-                if (_wheelPieces [ i ]._weight >= r)
+            for (int i = 0; i < _wheelPieces.Count; i++)
+                if (_wheelPieces [i].Weight >= r)
                     return i;
 
             return 0;
@@ -191,13 +297,13 @@ namespace PsyGameStud.PickerWheelUI
 
         private void CalculateWeightsAndIndices() 
         {
-            for (int i = 0; i < _wheelPieces.Length; i++) 
+            for (int i = 0; i < _wheelPieces.Count; i++) 
             {
                 WheelPiece piece = _wheelPieces[i];
 
                 //add weights:
                 _accumulatedWeight += piece.Chance;
-                piece._weight = _accumulatedWeight;
+                piece.Weight = _accumulatedWeight;
 
                 //add index :
                 piece.Index = i;
