@@ -214,6 +214,7 @@ namespace PsyGameStud
 
         private async UniTask GetReward(int reward)
         {
+            _rewardText.gameObject.SetActive(true);
             _rewardText.text = $"{0}";
             _rewardImage.gameObject.SetActive(false);
 
@@ -224,20 +225,20 @@ namespace PsyGameStud
 
             await UniTask.Delay(TimeSpan.FromSeconds(1f));
 
-            await DOVirtual.Int(0, reward, 5f, async progress =>
+            foreach (var item in _flyingElements)
             {
-                foreach (var item in _flyingElements)
-                {
-                    await item.FlyProcess();
-                    _rewardText.text = $"{progress}";
-                }
-            }).SetAutoKill();
+                item.FlyProcess(UnityEngine.Random.Range(0.5f, 2f)).Forget();
+            }
 
-            _rewardText.text = $"{reward}";
+            await DOVirtual.Int(0, reward, 2f, progress =>
+            {
+                _rewardText.text = $"{progress}";
+            }).SetAutoKill();
 
             await UniTask.Delay(TimeSpan.FromSeconds(1f));
 
             _rewardImage.gameObject.SetActive(true);
+            _rewardText.gameObject.SetActive(false);
         }
 
         private async UniTask ChangeRewards()
@@ -260,7 +261,7 @@ namespace PsyGameStud
                 var idLastReward = _rewards.IndexOf(_lastReward);
                 idLastReward += 1;
 
-                if (idLastReward == _rewards.Count)
+                if (idLastReward >= _rewards.Count)
                 {
                     idLastReward = 0;
                 }

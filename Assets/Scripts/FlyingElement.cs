@@ -23,12 +23,12 @@ namespace PsyGameStud
             _myTransform.DOScale(Random.Range(0.5f, 1f), 1f);
         }
 
-        public async UniTask FlyProcess()
+        public async UniTask FlyProcess(float timeFly)
         {
             var sequence = DOTween.Sequence();
 
-            await sequence.Append(_myTransform.DOScale(0f, 0.5f))
-                .Join(_myTransform.DOAnchorPos(Vector2.zero, 0.5f));
+            await sequence.Append(_myTransform.DOScale(0f, timeFly))
+                .Join(_myTransform.DOAnchorPos(Vector2.zero, timeFly));
         }
     }
 }
